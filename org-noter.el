@@ -695,40 +695,44 @@ properties, by a margin of NEWLINES-NUMBER."
                    `(progn ,error-str))))
           ,(when with-error `(user-error "%s" ,error-str)))))))
 
+(defun org-noter--string-non-empty-p (str)
+  "Return t if STR is a non-empty string."
+  (and (stringp str) (not (string-empty-p str))))
+
 (defun org-noter--notes-window-behavior-property (ast)
   (let ((property (org-element-property (intern (concat ":" org-noter--property-behavior)) ast))
         value)
-    (when (and (stringp property) (> (length property) 0))
+    (when (org-noter--string-non-empty-p property)
       (setq value (car (read-from-string property)))
       (when (listp value) value))))
 
 (defun org-noter--notes-window-location-property (ast)
   (let ((property (org-element-property (intern (concat ":" org-noter--property-location)) ast))
         value)
-    (when (and (stringp property) (> (length property) 0))
+    (when (org-noter--string-non-empty-p property)
       (setq value (intern property))
       (when (memq value '(horizontal-split vertical-split other-frame)) value))))
 
 (defun org-noter--doc-split-fraction-property (ast)
   (let ((property (org-element-property (intern (concat ":" org-noter--property-doc-split-fraction)) ast))
         value)
-    (when (and (stringp property) (> (length property) 0))
+    (when (org-noter--string-non-empty-p property)
       (setq value (car (read-from-string property)))
       (when (consp value) value))))
 
 (defun org-noter--auto-save-last-location-property (ast)
   (let ((property (org-element-property (intern (concat ":" org-noter--property-auto-save-last-location)) ast)))
-    (when (and (stringp property) (> (length property) 0))
+    (when (org-noter--string-non-empty-p property)
       (if (intern property) t 'disable))))
 
 (defun org-noter--hide-other-property (ast)
   (let ((property (org-element-property (intern (concat ":" org-noter--property-hide-other)) ast)))
-    (when (and (stringp property) (> (length property) 0))
+    (when (org-noter--string-non-empty-p property)
       (if (intern property) t 'disable))))
 
 (defun org-noter--closest-tipping-point-property (ast)
   (let ((property (org-element-property (intern (concat ":" org-noter--property-closest-tipping-point)) ast)))
-    (when (and (stringp property) (> (length property) 0))
+    (when (org-noter--string-non-empty-p property)
       (ignore-errors (string-to-number property)))))
 
 (defun org-noter--doc-approx-location-cons (&optional precise-info)
@@ -767,7 +771,7 @@ properties, by a margin of NEWLINES-NUMBER."
 (defun org-noter--check-location-property (arg)
   (let ((property (if (stringp arg) arg
                     (org-element-property (intern (concat ":" org-noter-property-note-location)) arg))))
-    (when (and (stringp property) (> (length property) 0))
+    (when (org-noter--string-non-empty-p property)
       (or (run-hook-with-args-until-success 'org-noter--check-location-property-hook property)
           (let ((value (car (read-from-string property))))
             (or (and (consp value) (integerp (car value)) (numberp (cdr value)))
@@ -776,7 +780,7 @@ properties, by a margin of NEWLINES-NUMBER."
 (defun org-noter--parse-location-property (arg)
   (let ((property (if (stringp arg) arg
                     (org-element-property (intern (concat ":" org-noter-property-note-location)) arg))))
-    (when (and (stringp property) (> (length property) 0))
+    (when (org-noter--string-non-empty-p property)
       (or (run-hook-with-args-until-success 'org-noter--parse-location-property-hook property)
           (let ((value (car (read-from-string property))))
             (cond ((and (consp value) (integerp (car value)) (numberp (cdr value))) value)
