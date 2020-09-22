@@ -1604,29 +1604,20 @@ Only available with PDF Tools."
                  (push `[,.title ,(cons .page .top) ,(1+ .depth) nil] output-data)))))
 
          (when (memq 'annots answer)
-           (let ((possible-annots (list '("Highlights" . highlight)
-                                        '("Underlines" . underline)
-                                        '("Squigglies" . squiggly)
-                                        '("Text notes" . text)
-                                        '("Strikeouts" . strike-out)
-                                        '("Links" . link)
-                                        '("ALL" . all)))
-                 chosen-annots insert-contents pages-with-links)
-             (while (> (length possible-annots) 1)
-               (let* ((chosen-string (completing-read "Which types of annotations do you want? "
-                                                      possible-annots nil t))
-                      (chosen-pair (assoc chosen-string possible-annots)))
-                 (cond ((eq (cdr chosen-pair) 'all)
-                        (dolist (annot possible-annots)
-                          (when (and (cdr annot) (not (eq (cdr annot) 'all)))
-                            (push (cdr annot) chosen-annots)))
-                        (setq possible-annots nil))
-                       ((cdr chosen-pair)
-                        (push (cdr chosen-pair) chosen-annots)
-                        (setq possible-annots (delq chosen-pair possible-annots))
-                        (when (= 1 (length chosen-annots)) (push '("DONE") possible-annots)))
-                       (t
-                        (setq possible-annots nil)))))
+           (let (chosen-annots insert-contents pages-with-links)
+             (let ((possible-annots-alist
+                    '(("Highlights" highlight)
+                      ("Underlines" underline)
+                      ("Squigglies" squiggly)
+                      ("Text notes" text)
+                      ("Strikeouts" strike-out)
+                      ("Links" link)
+                      ("ALL" highlight underline squiggly text strike-out link))))
+               (setq chosen-annots
+                     (seq-uniq
+                      (mapcan
+                       (lambda (elt) (cdr (assoc elt possible-annots-alist #'string)))
+                       (completing-read-multiple "Which types of annotations do you want? " possible-annots-alist nil t)))))
 
              (setq insert-contents (y-or-n-p "Should we insert the annotations contents? "))
 
