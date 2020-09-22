@@ -5,7 +5,7 @@
 ;; Author: Gonçalo Santos (aka. weirdNox@GitHub)
 ;; Homepage: https://github.com/weirdNox/org-noter
 ;; Keywords: lisp pdf interleave annotate external sync notes documents org-mode
-;; Package-Requires: ((emacs "26.1") (org "9.0"))
+;; Package-Requires: ((emacs "26.1") (org "9.0") (let-alist "1.0.6"))
 ;; Version: 1.4.1
 
 ;; This file is not part of GNU Emacs.
@@ -1595,13 +1595,9 @@ Only available with PDF Tools."
 
          (when (memq 'outline answer)
            (dolist (item (pdf-info-outline))
-             (let ((type  (alist-get 'type item))
-                   (page  (alist-get 'page item))
-                   (depth (alist-get 'depth item))
-                   (title (alist-get 'title item))
-                   (top   (alist-get 'top item)))
-               (when (and (eq type 'goto-dest) (> page 0))
-                 (push (vector title (cons page top) (1+ depth) nil) output-data)))))
+             (let-alist item
+               (when (and (eq .type 'goto-dest) (> .page 0))
+                 (push `[,.title ,(cons .page .top) ,(1+ .depth) nil] output-data)))))
 
          (when (memq 'annots answer)
            (let ((possible-annots (list '("Highlights" . highlight)
@@ -1631,62 +1627,47 @@ Only available with PDF Tools."
              (setq insert-contents (y-or-n-p "Should we insert the annotations contents? "))
 
              (dolist (item (pdf-info-getannots))
-               (let* ((type  (alist-get 'type item))
-                      (page  (alist-get 'page item))
-                      (edges (or (org-noter--pdf-tools-edges-to-region (alist-get 'markup-edges item))
-                                 (alist-get 'edges item)))
-                      (top (nth 1 edges))
-                      (item-subject (alist-get 'subject item))
-                      (item-contents (alist-get 'contents item))
-                      name contents)
-                 (when (and (memq type chosen-annots) (> page 0))
-                   (if (eq type 'link)
-                       (cl-pushnew page pages-with-links)
-                     (setq name (cond ((eq type 'highlight)  "Highlight")
-                                      ((eq type 'underline)  "Underline")
-                                      ((eq type 'squiggly)   "Squiggly")
-                                      ((eq type 'text)       "Text note")
-                                      ((eq type 'strike-out) "Strikeout")))
-
-                     (when insert-contents
-                       (setq contents (cons (pdf-info-gettext page edges)
-                                            (and (or (and item-subject (> (length item-subject) 0))
-                                                     (and item-contents (> (length item-contents) 0)))
-                                                 (concat (or item-subject "")
-                                                         (if (and item-subject item-contents) "\n" "")
-                                                         (or item-contents ""))))))
-
-                     (push (vector (format "%s on page %d" name page) (cons page top) 'inside contents)
-                           output-data)))))
+               (let-alist item
+                 (let ((edges (or (org-noter--pdf-tools-edges-to-region .markup-edges) .edges)))
+                   (when (and (memq .type chosen-annots) (> .page 0))
+                     (if (eq .type 'link)
+                         (cl-pushnew .page pages-with-links)
+                       (let ((name (cond ((eq .type 'highlight)  "Highlight")
+                                         ((eq .type 'underline)  "Underline")
+                                         ((eq .type 'squiggly)   "Squiggly")
+                                         ((eq .type 'text)       "Text note")
+                                         ((eq .type 'strike-out) "Strikeout")))
+                             contents)
+                         (when insert-contents
+                           (setq contents (cons (pdf-info-gettext .page edges)
+                                                (concat .item-subject
+                                                        (when (and .item-subject .item-contents)
+                                                          "\n")
+                                                        .item-contents))))
+                         (push `[,(format "%s on page %d" name .page) ,(cons .page (nth 1 edges)) inside ,contents]
+                               output-data)))))))
 
              (dolist (page pages-with-links)
-               (let ((links (pdf-info-pagelinks page))
-                     type)
+               (let ((links (pdf-info-pagelinks page)))
                  (dolist (link links)
-                   (setq type (alist-get 'type  link))
-                   (unless (eq type 'goto-dest) ;; NOTE(nox): Ignore internal links
-                     (let* ((edges (alist-get 'edges link))
-                            (title (alist-get 'title link))
-                            (top (nth 1 edges))
-                            (target-page (alist-get 'page link))
-                            target heading-text)
+                   (let-alist link
+                     (unless (eq .type 'goto-dest) ;; NOTE(nox): Ignore internal links
+                       (let ((title (if (and (stringp .title) (not (string-empty-p .title)))
+                                        .title
+                                      (pdf-info-gettext page .edges)))
+                             heading-text)
+                         (cl-case .type
+                           (uri
+                            (setq heading-text (format "Link on page %d: [[%s][%s]]" page .uri title)))
+                           (goto-remote
+                            (setq heading-text (format "Link to document on page %d: [[%s][file:%s]]" page .filename title))
+                            (when .target-page
+                              (setq heading-text (format "%s (target page: %d)" heading-text .target-page))))
+                           (t
+                            (error "Unexpected link type")))
 
-                       (unless (and title (> (length title) 0)) (setq title (pdf-info-gettext page edges)))
-
-                       (cond
-                        ((eq type 'uri)
-                         (setq target (alist-get 'uri link)
-                               heading-text (format "Link on page %d: [[%s][%s]]" page target title)))
-
-                        ((eq type 'goto-remote)
-                         (setq target (concat "file:" (alist-get 'filename link))
-                               heading-text (format "Link to document on page %d: [[%s][%s]]" page target title))
-                         (when target-page
-                           (setq heading-text (concat heading-text (format " (target page: %d)" target-page)))))
-
-                        (t (error "Unexpected link type")))
-
-                       (push (vector heading-text (cons page top) 'inside nil) output-data))))))))
+                         (let ((top (nth 1 .edges)))
+                           (push `[,heading-text (,page . ,top) inside nil] output-data))))))))))
 
 
          (when output-data
