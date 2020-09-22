@@ -399,26 +399,26 @@ The title used will be the default one."
     (push session org-noter--sessions)
 
     (with-current-buffer document-buffer
-      (cond
-       ;; NOTE(nox): PDF Tools
-       ((eq document-major-mode 'pdf-view-mode)
-        (setq buffer-file-name document-path)
-        (pdf-view-mode)
-        (add-hook 'pdf-view-after-change-page-hook 'org-noter--doc-location-change-handler nil t))
+      (cl-case document-major-mode
+        ;; NOTE(nox): PDF Tools
+        (pdf-view-mode
+         (setq buffer-file-name document-path)
+         (pdf-view-mode)
+         (add-hook 'pdf-view-after-change-page-hook 'org-noter--doc-location-change-handler nil t))
 
-       ;; NOTE(nox): DocView
-       ((eq document-major-mode 'doc-view-mode)
-        (setq buffer-file-name document-path)
-        (doc-view-mode)
-        (advice-add 'doc-view-goto-page :after 'org-noter--location-change-advice))
+        ;; NOTE(nox): DocView
+        (doc-view-mode
+         (setq buffer-file-name document-path)
+         (doc-view-mode)
+         (advice-add 'doc-view-goto-page :after 'org-noter--location-change-advice))
 
-       ;; NOTE(nox): Nov.el
-       ((eq document-major-mode 'nov-mode)
-        (rename-buffer document-buffer-name)
-        (advice-add 'nov-render-document :after 'org-noter--nov-scroll-handler)
-        (add-hook 'window-scroll-functions 'org-noter--nov-scroll-handler nil t))
+        ;; NOTE(nox): Nov.el
+        (nov-mode
+         (rename-buffer document-buffer-name)
+         (advice-add 'nov-render-document :after 'org-noter--nov-scroll-handler)
+         (add-hook 'window-scroll-functions 'org-noter--nov-scroll-handler nil t))
 
-       (t (error "This document handler is not supported :/")))
+        (t (error "This document handler is not supported :/")))
 
       (org-noter-doc-mode 1)
       (setq org-noter--session session)
@@ -736,16 +736,16 @@ properties, by a margin of NEWLINES-NUMBER."
       (ignore-errors (string-to-number property)))))
 
 (defun org-noter--doc-approx-location-cons (&optional precise-info)
-  (cond
-   ((memq major-mode '(doc-view-mode pdf-view-mode))
-    (cons (image-mode-window-get 'page) (if (numberp precise-info) precise-info 0)))
+  (cl-case major-mode
+    ((doc-view-mode pdf-view-mode)
+     (cons (image-mode-window-get 'page) (if (numberp precise-info) precise-info 0)))
 
-   ((eq major-mode 'nov-mode)
-    (cons nov-documents-index (if (integerp precise-info)
-                                  precise-info
-                                (max 1 (/ (+ (window-start) (window-end nil t)) 2)))))
+    (nov-mode
+     (cons nov-documents-index (if (integerp precise-info)
+                                   precise-info
+                                 (max 1 (/ (+ (window-start) (window-end nil t)) 2)))))
 
-   (t (error "Unknown document type %s" major-mode))))
+    (t (error "Unknown document type %s" major-mode))))
 
 (defun org-noter--doc-approx-location (&optional precise-info force-new-ref)
   (let ((window (if (org-noter--valid-session org-noter--session)
@@ -789,16 +789,16 @@ properties, by a margin of NEWLINES-NUMBER."
 (defun org-noter--pretty-print-location (location)
   (org-noter--with-valid-session
    (or (run-hook-with-args-until-success 'org-noter--pretty-print-location-hook location)
-       (format "%s" (cond
-                     ((memq (org-noter--session-doc-mode session) '(doc-view-mode pdf-view-mode))
-                      (if (or (not (cdr location)) (<= (cdr location) 0))
-                          (car location)
-                        location))
+       (format "%s" (cl-case (org-noter--session-doc-mode session)
+                      ((doc-view-mode pdf-view-mode)
+                       (if (or (not (cdr location)) (<= (cdr location) 0))
+                           (car location)
+                         location))
 
-                     ((eq (org-noter--session-doc-mode session) 'nov-mode)
-                      (if (or (not (cdr location)) (<= (cdr location) 1))
-                          (car location)
-                        location)))))))
+                      (nov-mode
+                       (if (or (not (cdr location)) (<= (cdr location) 1))
+                           (car location)
+                         location)))))))
 
 (defun org-noter--get-containing-heading (&optional include-root)
   "Get smallest containing heading that encloses the point and has location property.
@@ -926,30 +926,31 @@ When INCLUDE-ROOT is non-nil, the root heading is also eligible to be returned."
   "Compare L1 and L2 using COMP function, which are location cons.
 See `org-noter--compare-locations'"
   (cl-assert (and (consp l1) (consp l2)))
-  (cond ((eq comp '=)
+  (cl-case comp
+    (=
+     (and (= (car l1) (car l2))
+          (= (cdr l1) (cdr l2))))
+    (<
+     (or (< (car l1) (car l2))
          (and (= (car l1) (car l2))
-              (= (cdr l1) (cdr l2))))
-        ((eq comp '<)
-         (or (< (car l1) (car l2))
-             (and (= (car l1) (car l2))
-                  (< (cdr l1) (cdr l2)))))
-        ((eq comp '<=)
-         (or (< (car l1) (car l2))
-             (and (=  (car l1) (car l2))
-                  (<= (cdr l1) (cdr l2)))))
-        ((eq comp '>)
-         (or (> (car l1) (car l2))
-             (and (= (car l1) (car l2))
-                  (> (cdr l1) (cdr l2)))))
-        ((eq comp '>=)
-         (or (> (car l1) (car l2))
-             (and (= (car l1) (car l2))
-                  (>= (cdr l1) (cdr l2)))))
-        ((eq comp '>f)
-         (or (> (car l1) (car l2))
-             (and (= (car l1) (car l2))
-                  (< (cdr l1) (cdr l2)))))
-        (t (error "Comparison operator %s not known" comp))))
+              (< (cdr l1) (cdr l2)))))
+    (<=
+     (or (< (car l1) (car l2))
+         (and (=  (car l1) (car l2))
+              (<= (cdr l1) (cdr l2)))))
+    (>
+     (or (> (car l1) (car l2))
+         (and (= (car l1) (car l2))
+              (> (cdr l1) (cdr l2)))))
+    (>=
+     (or (> (car l1) (car l2))
+         (and (= (car l1) (car l2))
+              (>= (cdr l1) (cdr l2)))))
+    (>f
+     (or (> (car l1) (car l2))
+         (and (= (car l1) (car l2))
+              (< (cdr l1) (cdr l2)))))
+    (t (error "Comparison operator %s not known" comp))))
 
 (defun org-noter--compare-locations (comp l1 l2)
   "Compare L1 and L2.
@@ -1040,13 +1041,14 @@ document property) will be opened."
   (org-noter--with-valid-session
    (let ((mode (org-noter--session-doc-mode session)))
      (with-selected-window (org-noter--get-doc-window)
-       (cond ((memq mode '(doc-view-mode pdf-view-mode))
-              (vector 'paged (car (org-noter--doc-approx-location-cons))))
-             ((eq mode 'nov-mode)
-              (vector 'nov
-                      (org-noter--doc-approx-location-cons (window-start))
-                      (org-noter--doc-approx-location-cons (window-end nil t))))
-             (t (error "Unknown document type")))))))
+       (cl-case mode
+         ((doc-view-mode pdf-view-mode)
+          (vector 'paged (car (org-noter--doc-approx-location-cons))))
+         (nov-mode
+          (let ((start (org-noter--doc-approx-location-cons (window-start)))
+                (end (org-noter--doc-approx-location-cons (window-end nil t))))
+            (vector 'nov start end)))
+         (t (error "Unknown document type")))))))
 
 (defun org-noter--note-after-tipping-point (point location view)
   ;; NOTE(nox): This __assumes__ the note is inside the view!
@@ -1144,22 +1146,18 @@ relative to."
 
               (location
                (let ((relative-position (org-noter--relative-position-to-view location view)))
-                 (cond
-                  ((eq relative-position 'inside)
-                   (push (cons headline nil) notes-in-view)
+                 (if (eq 'inside relative-position)
+                     (progn
+                       (push (cons headline nil) notes-in-view)
+                       (org-noter--view-region-add current-region-info regions-in-view headline)
+                       (setq all-after-tipping-point
+                             (and all-after-tipping-point (org-noter--note-after-tipping-point
+                                                           closest-tipping-point location view))))
 
-                   (org-noter--view-region-add current-region-info regions-in-view headline)
-
-                   (setq all-after-tipping-point
-                         (and all-after-tipping-point (org-noter--note-after-tipping-point
-                                                       closest-tipping-point location view))))
-
-                  (t
                    (when current-region-info
-                     (let ((note-cons-to-change (cond ((eq (aref current-region-info 3) 'regions-in-view)
-                                                       (car notes-in-view))
-                                                      ((eq (aref current-region-info 3) 'closest-notes-regions)
-                                                       (car closest-notes)))))
+                     (let ((note-cons-to-change (cl-case (aref current-region-info 3)
+                                                  (regions-in-view (car notes-in-view))
+                                                  (closest-notes-regions (car closest-notes)))))
                        (when (< (org-element-property :begin headline)
                                 (org-element-property :end   (car note-cons-to-change)))
                          (setcdr note-cons-to-change headline))))
@@ -1178,7 +1176,7 @@ relative to."
                             (push (cons headline nil) closest-notes)
                             (org-noter--view-region-add current-region-info closest-notes-regions headline))
 
-                           (t (org-noter--view-region-finish current-region-info headline)))))))
+                           (t (org-noter--view-region-finish current-region-info headline))))))
 
                (when new-location
                  (setq preamble nil)
@@ -1627,11 +1625,10 @@ Only available with PDF Tools."
                    (when (and (memq .type chosen-annots) (> .page 0))
                      (if (eq .type 'link)
                          (cl-pushnew .page pages-with-links)
-                       (let ((name (cond ((eq .type 'highlight)  "Highlight")
-                                         ((eq .type 'underline)  "Underline")
-                                         ((eq .type 'squiggly)   "Squiggly")
-                                         ((eq .type 'text)       "Text note")
-                                         ((eq .type 'strike-out) "Strikeout")))
+                       (let ((name (cl-case .type
+                                     (text "Text note")
+                                     (strike-out "Strikeout")
+                                     (t (capitalize (symbol-name .type)))))
                              contents)
                          (when insert-contents
                            (setq contents (cons (pdf-info-gettext .page edges)
@@ -1827,11 +1824,9 @@ defines if the text should be inserted inside the note."
 
                (if reference-element-cons
                    (progn
-                     (cond
-                      ((eq (car reference-element-cons) 'before)
-                       (goto-char (org-element-property :begin (cdr reference-element-cons))))
-                      ((eq (car reference-element-cons) 'after)
-                       (goto-char (org-element-property :end (cdr reference-element-cons)))))
+                     (cl-case (car reference-element-cons)
+                       (before (goto-char (org-element-property :begin (cdr reference-element-cons))))
+                       (after (goto-char (org-element-property :end (cdr reference-element-cons)))))
 
                      ;; NOTE(nox): This is here to make the automatic "should insert blank" work better.
                      (when (org-at-heading-p) (backward-char))
