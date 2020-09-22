@@ -5,7 +5,7 @@
 ;; Author: Gonçalo Santos (aka. weirdNox@GitHub)
 ;; Homepage: https://github.com/weirdNox/org-noter
 ;; Keywords: lisp pdf interleave annotate external sync notes documents org-mode
-;; Package-Requires: ((emacs "24.4") (cl-lib "0.6") (org "9.0"))
+;; Package-Requires: ((emacs "26.1") (org "9.0"))
 ;; Version: 1.4.1
 
 ;; This file is not part of GNU Emacs.
@@ -919,7 +919,7 @@ When INCLUDE-ROOT is non-nil, the root heading is also eligible to be returned."
        (redisplay)))))
 
 (defun org-noter--compare-location-cons (comp l1 l2)
-  "Compare L1 and L2, which are location cons.
+  "Compare L1 and L2 using COMP function, which are location cons.
 See `org-noter--compare-locations'"
   (cl-assert (and (consp l1) (consp l2)))
   (cond ((eq comp '=)
@@ -1287,7 +1287,7 @@ relative to."
         (require 'org-attach)
         (let* ((attach-dir (org-attach-dir))
                (attach-list (and attach-dir (org-attach-file-list attach-dir))))
-          (when (and attach-list (y-or-n-p "Do you want to annotate an attached file?"))
+          (when (and attach-list (y-or-n-p "Do you want to annotate an attached file? "))
             (setq doc-prop (completing-read "File to annotate: " attach-list nil t))
             (when doc-prop (setq doc-prop (file-relative-name (expand-file-name doc-prop attach-dir)))))))
 
@@ -1744,7 +1744,7 @@ Only available with PDF Tools."
            (outline-hide-subtree)
            (org-show-children 2)))))
 
-    (t (user-error "This command is only supported on PDF Tools.")))))
+    (t (user-error "This command is only supported on PDF Tools")))))
 
 (defun org-noter-insert-note (&optional precise-info)
   "Insert note associated with the current location.
